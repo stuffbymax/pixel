@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Pixel Art Editor</title>
+    <style>
+        :root {
+            --background-color: #2c3e50;
+            --main-color: #34495e;
+            --accent-color: #1abc9c;
+            --text-color: #ecf0f1;
+            --border-color: #2c3e50;
+            --input-background: #46627f;
+            --input-disabled-background: #3a5068;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 350px;
+            background-color: var(--main-color);
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #main-content {
+            flex-grow: 1;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            overflow: auto;
+            /* Checkered background for transparency */
+            background-image:
+                linear-gradient(45deg, #3a5068 25%, transparent 25%),
+                linear-gradient(-45deg, #3a5068 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #3a5068 75%),
+                linear-gradient(-45deg, transparent 75%, #3a5068 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        canvas {
+            border: 2px solid var(--accent-color);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--input-background);
+            padding-bottom: 15px;
+        }
+
+        .control-group:last-child {
+            border-bottom: none;
+        }
+        
+        .control-group h3 {
+            margin-top: 0;
+            padding-bottom: 5px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 1.1em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-group h3 .arrow {
+            transition: transform 0.2s;
+        }
+
+        .control-group.collapsed .controls {
+            display: none;
+        }
+        
+        .control-group.collapsed h3 .arrow {
+            transform: rotate(-90deg);
+        }
+
+        label, .label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background-color: var(--input-background);
+            color: var(--text-color);
+            font-family: inherit;
+        }
+
+        input:disabled {
+            background-color: var(--input-disabled-background);
+            cursor: not-allowed;
+        }
+
+        input[type="file"] {
+            padding: 4px;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #16a085;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .input-group label {
+            flex-shrink: 0;
+             margin-bottom: 0;
+        }
+
+        #palette-editor {
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .palette-color {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .palette-color input[type="color"] {
+            width: 50px;
+            height: 30px;
+            padding: 2px;
+            margin-right: 10px;
+        }
+
+        .palette-color button {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            font-size: 1.2em;
+            line-height: 30px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        #add-color {
+            margin-top: 10px;
+        }
+
+        #canvas-container {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>Pixel Art Editor</h2>
+
+        <div class="control-group">
+            <label for="image-upload">1. Upload Image</label>
+            <input type="file" id="image-upload" accept="image/*">
+        </div>
+
+        <div class="control-group" id="resolution-section">
+            <h3>Resolution <span class="arrow">▼</span></h3>
+            <div class="controls">
+                <label for="resolution-select">Preset</label>
+                <select id="resolution-select">
+                    <option value="auto">Auto</option>
+                    <option value="16x16">16×16</option>
+                    <option value="32x32">32×32</option>
+                    <option value="64x64">64×64</option>
+                    <option value="custom">Custom</option>
+                </select>
+                <div id="custom-resolution-inputs" class="input-group" style="display: none; margin-top: 10px;">
+                    <input type="number" id="custom-width" value="64" min="1">
+                    <label>x</label>
+                    <input type="number" id="custom-height" value="64" min="1">
+                </div>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Image Settings <span class="arrow">▼</span></h3>
+            <div class="controls">
+                 <div class="input-group" style="margin-bottom: 10px;">
+                    <label for="pixel-size-x">Pixel X:</label>
+                    <input type="range" id="pixel-size-x" min="1" max="100" value="16">
+                    <input type="number" id="pixel-size-x-num" min="1" max="100" value="16" style="width: 70px;">
+                </div>
+                <div class="input-group" style="margin-bottom: 10px;">
+                    <label for="pixel-size-y">Pixel Y:</label>
+                    <input type="range" id="pixel-size-y" min="1" max="100" value="16">
+                     <input type="number" id="pixel-size-y-num" min="1" max="100" value="16" style="width: 70px;">
+                </div>
+                
+                <label for="brightness">Brightness: <span id="brightness-value">100</span>%</label>
+                <input type="range" id="brightness" min="0" max="200" value="100">
+
+                <label for="contrast">Contrast: <span id="contrast-value">100</span>%</label>
+                <input type="range" id="contrast" min="0" max="200" value="100">
+            </div>
+        </div>
+
+        <div class="control-group" id="palette-section">
+            <h3>Palette <span class="arrow">▼</span></h3>
+            <div class="controls">
+                <label for="palette-select">Choose a palette:</label>
+                <select id="palette-select">
+                    <option value="none">No Palette / Full Color</option>
+                    <option value="nes">NES</option>
+                    <option value="gameboy">Game Boy</option>
+                    <option value="c64">C64</option>
+                    <option value="vice">VICE</option>
+                    <option value="amiga">Amiga</option>
+                    <option value="ega">EGA</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="control-group collapsed" id="palette-editor-section">
+            <h3>Palette Editor <span class="arrow">▼</span></h3>
+            <div class="controls">
+                <div id="palette-editor"></div>
+                <button id="add-color">Add Color</button>
+            </div>
+        </div>
+
+        <div class="control-group collapsed">
+            <h3>Effects <span class="arrow">▼</span></h3>
+            <div class="controls">
+                <label><input type="checkbox" id="outline-toggle"> Outline</label>
+                <div id="outline-options" style="display: none; padding-left: 20px;">
+                    <label for="outline-color">Color:</label>
+                    <input type="color" id="outline-color" value="#000000">
+                    <label for="outline-thickness">Thickness: <span id="outline-thickness-value">1</span></label>
+                    <input type="range" id="outline-thickness" min="1" max="10" value="1">
+                </div>
+                <label><input type="checkbox" id="grid-toggle"> Grid Overlay</label>
+            </div>
+        </div>
+        
+        <div class="control-group collapsed">
+            <h3>Advanced <span class="arrow">▼</span></h3>
+            <div class="controls">
+                <label><input type="checkbox" id="transparent-bg"> Transparent Background</label>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Actions <span class="arrow">▼</span></h3>
+            <div class="controls">
+                <button id="download-btn">Download as PNG</button>
+                <button id="toggle-original-btn">Toggle Original Image</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-content">
+        <div id="canvas-container">
+            <canvas id="pixel-canvas"></canvas>
+            <canvas id="original-canvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const imageUpload = document.getElementById('image-upload');
+            const pixelCanvas = document.getElementById('pixel-canvas');
+            const originalCanvas = document.getElementById('original-canvas');
+            const pixelCtx = pixelCanvas.getContext('2d');
+            const originalCtx = originalCanvas.getContext('2d');
+
+            const resolutionSelect = document.getElementById('resolution-select');
+            const customResolutionInputs = document.getElementById('custom-resolution-inputs');
+            const customWidthInput = document.getElementById('custom-width');
+            const customHeightInput = document.getElementById('custom-height');
+            
+            const pixelSizeXInput = document.getElementById('pixel-size-x');
+            const pixelSizeYInput = document.getElementById('pixel-size-y');
+            const pixelSizeXNum = document.getElementById('pixel-size-x-num');
+            const pixelSizeYNum = document.getElementById('pixel-size-y-num');
+            const brightnessInput = document.getElementById('brightness');
+            const contrastInput = document.getElementById('contrast');
+            
+            const paletteSelect = document.getElementById('palette-select');
+            const paletteEditorSection = document.getElementById('palette-editor-section');
+            const paletteEditor = document.getElementById('palette-editor');
+            const addColorBtn = document.getElementById('add-color');
+
+            const outlineToggle = document.getElementById('outline-toggle');
+            const outlineOptions = document.getElementById('outline-options');
+            const outlineColorInput = document.getElementById('outline-color');
+            const outlineThicknessInput = document.getElementById('outline-thickness');
+            
+            const gridToggle = document.getElementById('grid-toggle');
+            const transparentBg = document.getElementById('transparent-bg');
+            const downloadBtn = document.getElementById('download-btn');
+            const toggleOriginalBtn = document.getElementById('toggle-original-btn');
+            
+            const brightnessValue = document.getElementById('brightness-value');
+            const contrastValue = document.getElementById('contrast-value');
+            const outlineThicknessValue = document.getElementById('outline-thickness-value');
+
+            // State
+            let originalImage = null;
+            let customPalette = ['#000000', '#FFFFFF'];
+            let isManualPixelSizing = false;
+            let gridState = []; // For storing opacity info for outline effect
+
+            const palettes = {
+                nes: ["#7C7C7C", "#0000FC", "#0000BC", "#4428BC", "#940084", "#A80020", "#A81000", "#881400", "#503000", "#007800", "#006800", "#005800", "#004058", "#000000", "#BCBCBC", "#0078F8", "#0058F8", "#6844FC", "#D800CC", "#E40058", "#F83800", "#E45C10", "#AC7C00", "#00B800", "#00A800", "#00A844", "#008888", "#000000", "#F8F8F8", "#3CBCFC", "#6888FC", "#9878F8", "#F878F8", "#F85898", "#F87858", "#FCA044", "#F8B800", "#B8F818", "#58D854", "#58F898", "#00E8D8", "#787878", "#FCFCFC", "#A4E4FC", "#B8B8F8", "#D8B8F8", "#F8B8F8", "#F8A4C0", "#F0D0B0", "#FCE0A8", "#F8D878", "#D8F878", "#B8F8B8", "#B8F8D8", "#00FCFC", "#F8D8F8"],
+                gameboy: ['#0f380f', '#306230', '#8bac0f', '#9bbc0f'],
+                c64: ["#000000", "#ffffff", "#68372b", "#70a4b2", "#6f3d86", "#588d43", "#352879", "#b8c76f", "#6f4f25", "#433900", "#9a6759", "#444444", "#6c6c6c", "#9ad284", "#6c5eb5", "#959595"],
+                vice: ["#000000", "#FFFFFF", "#8B4131", "#75CEC8", "#8B41AC", "#60A55A", "#483B8B", "#CAC58B", "#8B5A2B", "#504500", "#B57164", "#545454", "#7E7E7E", "#9EEA98", "#7971C5", "#A9A9A9"],
+                amiga: ["#000000", "#FDFDFD", "#0000A8", "#2448A8", "#4969A8", "#6D8BA8", "#92ACA8", "#B6CEA8", "#DACFA8", "#FFFFFF", "#BC0000", "#BC2424", "#BC4949", "#BC6D6D", "#BC9292", "#BCB6B6", "#BCCCCC", "#00BC00", "#24BC24", "#49BC49", "#6DBC6D", "#92BC92", "#B6BCB6", "#BCCCBC", "#00BCBC", "#24BCBC", "#49BCBC", "#6DBCBC", "#92BCBC", "#B6BCBC", "#BCCCCC", "#000000"],
+                ega: ["#000000", "#0000AA", "#00AA00", "#00AAAA", "#AA0000", "#AA00AA", "#AA5500", "#AAAAAA", "#555555", "#5555FF", "#55FF55", "#55FFFF", "#FF5555", "#FF55FF", "#FFFF55", "#FFFFFF"]
+            };
+
+            // Event Listeners
+            imageUpload.addEventListener('change', handleImageUpload);
+            
+            resolutionSelect.addEventListener('change', handleResolutionChange);
+            [customWidthInput, customHeightInput].forEach(el => el.addEventListener('input', () => { if (resolutionSelect.value === 'custom') handleResolutionChange(); }));
+            
+            pixelSizeXInput.addEventListener('input', () => { syncPixelInputs('range', 'x'); isManualPixelSizing = true; requestRedraw(); });
+            pixelSizeYInput.addEventListener('input', () => { syncPixelInputs('range', 'y'); isManualPixelSizing = true; requestRedraw(); });
+            pixelSizeXNum.addEventListener('input', () => { syncPixelInputs('num', 'x'); isManualPixelSizing = true; requestRedraw(); });
+            pixelSizeYNum.addEventListener('input', () => { syncPixelInputs('num', 'y'); isManualPixelSizing = true; requestRedraw(); });
+
+            brightnessInput.addEventListener('input', () => { brightnessValue.textContent = brightnessInput.value; requestRedraw(); });
+            contrastInput.addEventListener('input', () => { contrastValue.textContent = contrastInput.value; requestRedraw(); });
+            
+            paletteSelect.addEventListener('change', () => {
+                const isCustom = paletteSelect.value === 'custom';
+                paletteEditorSection.style.display = isCustom ? 'block' : 'none';
+                if(isCustom) paletteEditorSection.classList.remove('collapsed');
+                else paletteEditorSection.classList.add('collapsed');
+                if (isCustom) updatePaletteEditor();
+                requestRedraw();
+            });
+
+            outlineToggle.addEventListener('change', () => {
+                outlineOptions.style.display = outlineToggle.checked ? 'block' : 'none';
+                requestRedraw();
+            });
+            outlineColorInput.addEventListener('input', requestRedraw);
+            outlineThicknessInput.addEventListener('input', () => { outlineThicknessValue.textContent = outlineThicknessInput.value; requestRedraw(); });
+            
+            gridToggle.addEventListener('change', requestRedraw);
+            
+            transparentBg.addEventListener('change', () => {
+                // BUG FIX: Toggle canvas background style for visual feedback
+                pixelCanvas.style.backgroundColor = transparentBg.checked ? 'transparent' : '#FFFFFF';
+                requestRedraw();
+            });
+
+            downloadBtn.addEventListener('click', downloadImage);
+            toggleOriginalBtn.addEventListener('click', () => originalCanvas.style.display = originalCanvas.style.display === 'none' ? 'block' : 'none');
+            addColorBtn.addEventListener('click', () => {
+                customPalette.push('#FFFFFF');
+                updatePaletteEditor();
+                requestRedraw();
+            });
+            
+            document.querySelectorAll('.control-group h3').forEach(header => {
+                header.addEventListener('click', () => header.parentElement.classList.toggle('collapsed'));
+            });
+
+            // Redraw throttling
+            let redrawQueued = false;
+            function requestRedraw() {
+                if (!redrawQueued) {
+                    redrawQueued = true;
+                    requestAnimationFrame(() => {
+                        redraw();
+                        redrawQueued = false;
+                    });
+                }
+            }
+
+            function handleImageUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    originalImage = new Image();
+                    originalImage.onload = () => {
+                        const maxCanvasDim = Math.min(window.innerWidth * 0.5, window.innerHeight * 0.8, 600);
+                        const aspectRatio = originalImage.width / originalImage.height;
+                        let canvasWidth, canvasHeight;
+
+                        if (aspectRatio > 1) { // Landscape
+                            canvasWidth = maxCanvasDim;
+                            canvasHeight = canvasWidth / aspectRatio;
+                        } else { // Portrait or square
+                            canvasHeight = maxCanvasDim;
+                            canvasWidth = canvasHeight * aspectRatio;
+                        }
+                        
+                        [pixelCanvas, originalCanvas].forEach(c => {
+                            c.width = Math.round(canvasWidth);
+                            c.height = Math.round(canvasHeight);
+                        });
+
+                        originalCtx.drawImage(originalImage, 0, 0, originalCanvas.width, originalCanvas.height);
+                        handleResolutionChange(); // This will trigger the first redraw
+                    };
+                    originalImage.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function handleResolutionChange() {
+                if (!originalImage) return;
+                isManualPixelSizing = false;
+                
+                customResolutionInputs.style.display = resolutionSelect.value === 'custom' ? 'flex' : 'none';
+
+                let targetCols, targetRows;
+                const canvasAspect = pixelCanvas.width / pixelCanvas.height;
+
+                switch (resolutionSelect.value) {
+                    case '16x16': targetCols = 16; targetRows = 16; break;
+                    case '32x32': targetCols = 32; targetRows = 32; break;
+                    case '64x64': targetCols = 64; targetRows = 64; break;
+                    case 'custom':
+                        targetCols = parseInt(customWidthInput.value) || 64;
+                        targetRows = parseInt(customHeightInput.value) || 64;
+                        break;
+                    case 'auto': default:
+                        if (canvasAspect > 1) {
+                            targetCols = 64; targetRows = Math.round(64 / canvasAspect);
+                        } else {
+                            targetRows = 64; targetCols = Math.round(64 * canvasAspect);
+                        }
+                        break;
+                }
+                
+                const newPixelSizeX = Math.max(1, Math.floor(pixelCanvas.width / targetCols));
+                const newPixelSizeY = Math.max(1, Math.floor(pixelCanvas.height / targetRows));
+                
+                pixelSizeXInput.value = newPixelSizeX;
+                pixelSizeYInput.value = newPixelSizeY;
+                syncPixelInputs('range', 'x');
+                syncPixelInputs('range', 'y');
+
+                requestRedraw();
+            }
+            
+            function syncPixelInputs(source, axis) {
+                const rangeInput = axis === 'x' ? pixelSizeXInput : pixelSizeYInput;
+                const numInput = axis === 'x' ? pixelSizeXNum : pixelSizeYNum;
+                if (source === 'range') numInput.value = rangeInput.value;
+                else rangeInput.value = numInput.value;
+            }
+
+            function redraw() {
+                if (!originalImage) return;
+
+                // Create a temporary canvas for applying filters
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = pixelCanvas.width;
+                tempCanvas.height = pixelCanvas.height;
+                tempCtx.filter = `brightness(${brightnessInput.value}%) contrast(${contrastInput.value}%)`;
+                tempCtx.drawImage(originalImage, 0, 0, tempCanvas.width, tempCanvas.height);
+                
+                pixelCtx.imageSmoothingEnabled = false;
+                
+                // Clear canvas
+                pixelCtx.clearRect(0, 0, pixelCanvas.width, pixelCanvas.height);
+                if (!transparentBg.checked) {
+                    pixelCtx.fillStyle = '#FFFFFF';
+                    pixelCtx.fillRect(0, 0, pixelCanvas.width, pixelCanvas.height);
+                }
+                
+                drawPixelatedImage(tempCtx);
+
+                if (outlineToggle.checked) drawOutline();
+                if (gridToggle.checked) drawGrid();
+            }
+
+            function drawPixelatedImage(filteredCtx) {
+                const pixelSizeX = parseInt(pixelSizeXInput.value);
+                const pixelSizeY = parseInt(pixelSizeYInput.value);
+                const cols = Math.floor(pixelCanvas.width / pixelSizeX);
+                const rows = Math.floor(pixelCanvas.height / pixelSizeY);
+                
+                gridState = Array(rows).fill(null).map(() => Array(cols).fill(false));
+
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        const sx = x * pixelSizeX;
+                        const sy = y * pixelSizeY;
+                        
+                        const result = getAverageColor(filteredCtx, sx, sy, pixelSizeX, pixelSizeY);
+                        
+                        if (result.isOpaque) {
+                            pixelCtx.fillStyle = result.color;
+                            pixelCtx.fillRect(sx, sy, pixelSizeX, pixelSizeY);
+                            gridState[y][x] = true; // Mark this grid cell as opaque
+                        }
+                    }
+                }
+            }
+            
+            function getAverageColor(ctx, x, y, width, height) {
+                const imageData = ctx.getImageData(x, y, width, height).data;
+                let r = 0, g = 0, b = 0, a = 0, count = 0;
+
+                for (let i = 0; i < imageData.length; i += 4) {
+                    // Only count pixels that are not fully transparent
+                    if (imageData[i+3] > 0) {
+                        r += imageData[i];
+                        g += imageData[i+1];
+                        b += imageData[i+2];
+                        a += imageData[i+3];
+                        count++;
+                    }
+                }
+
+                if (count === 0) return { color: 'transparent', isOpaque: false };
+                
+                r = Math.floor(r / count);
+                g = Math.floor(g / count);
+                b = Math.floor(b / count);
+                const isOpaque = (a / count) > 128; // Consider opaque if average alpha is > 50%
+
+                if (!isOpaque) return { color: 'transparent', isOpaque: false };
+
+                let finalColor = `rgb(${r}, ${g}, ${b})`;
+                
+                const selectedPalette = paletteSelect.value;
+                if (selectedPalette !== 'none') {
+                    const currentPalette = (selectedPalette === 'custom') ? customPalette : palettes[selectedPalette];
+                    if(currentPalette && currentPalette.length > 0){
+                       finalColor = getClosestColor([r, g, b], currentPalette);
+                    }
+                }
+                return { color: finalColor, isOpaque: true };
+            }
+
+            function getClosestColor(rgb, palette) {
+                let closestColor = palette[0];
+                let minDistance = Infinity;
+                const [r1, g1, b1] = rgb;
+
+                for (const hex of palette) {
+                    const [r2, g2, b2] = hexToRgb(hex);
+                    const distance = (r1 - r2)**2 + (g1 - g2)**2 + (b1 - b2)**2;
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestColor = hex;
+                    }
+                }
+                return closestColor;
+            }
+
+            function hexToRgb(hex) {
+                const bigint = parseInt(hex.slice(1), 16);
+                return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
+            }
+            
+            function drawGrid() {
+                const pixelSizeX = parseInt(pixelSizeXInput.value);
+                const pixelSizeY = parseInt(pixelSizeYInput.value);
+                pixelCtx.strokeStyle = 'rgba(0,0,0,0.2)';
+                pixelCtx.lineWidth = 1;
+                for (let x = 0; x <= pixelCanvas.width; x += pixelSizeX) {
+                    pixelCtx.beginPath(); pixelCtx.moveTo(x, 0); pixelCtx.lineTo(x, pixelCanvas.height); pixelCtx.stroke();
+                }
+                for (let y = 0; y <= pixelCanvas.height; y += pixelSizeY) {
+                    pixelCtx.beginPath(); pixelCtx.moveTo(0, y); pixelCtx.lineTo(pixelCanvas.width, y); pixelCtx.stroke();
+                }
+            }
+            
+            function drawOutline() {
+                const pixelSizeX = parseInt(pixelSizeXInput.value);
+                const pixelSizeY = parseInt(pixelSizeYInput.value);
+                const thickness = parseInt(outlineThicknessInput.value);
+                pixelCtx.fillStyle = outlineColorInput.value;
+
+                const rows = gridState.length;
+                if (rows === 0) return;
+                const cols = gridState[0].length;
+
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        if (!gridState[y][x]) continue; // Skip transparent cells
+
+                        const px = x * pixelSizeX;
+                        const py = y * pixelSizeY;
+                        
+                        // Check top neighbor
+                        if (y === 0 || !gridState[y-1][x]) {
+                            pixelCtx.fillRect(px, py, pixelSizeX, thickness);
+                        }
+                        // Check bottom neighbor
+                        if (y === rows - 1 || !gridState[y+1][x]) {
+                            pixelCtx.fillRect(px, py + pixelSizeY - thickness, pixelSizeX, thickness);
+                        }
+                        // Check left neighbor
+                        if (x === 0 || !gridState[y][x-1]) {
+                            pixelCtx.fillRect(px, py, thickness, pixelSizeY);
+                        }
+                        // Check right neighbor
+                        if (x === cols - 1 || !gridState[y][x+1]) {
+                            pixelCtx.fillRect(px + pixelSizeX - thickness, py, thickness, pixelSizeY);
+                        }
+                    }
+                }
+            }
+
+            function downloadImage() {
+                const link = document.createElement('a');
+                link.download = 'pixel-art.png';
+                link.href = pixelCanvas.toDataURL('image/png');
+                link.click();
+            }
+
+            function updatePaletteEditor() {
+                paletteEditor.innerHTML = '';
+                customPalette.forEach((color, index) => {
+                    const colorDiv = document.createElement('div');
+                    colorDiv.className = 'palette-color';
+                    const colorInput = document.createElement('input');
+                    colorInput.type = 'color';
+                    colorInput.value = color;
+                    colorInput.addEventListener('input', (e) => { customPalette[index] = e.target.value; requestRedraw(); });
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = '−';
+                    removeBtn.onclick = () => { customPalette.splice(index, 1); updatePaletteEditor(); requestRedraw(); };
+                    colorDiv.appendChild(colorInput);
+                    colorDiv.appendChild(removeBtn);
+                    paletteEditor.appendChild(colorDiv);
+                });
+            }
+
+            // Init
+            pixelCanvas.style.backgroundColor = '#FFFFFF';
+            updatePaletteEditor();
+        });
+    </script>
+</body>
+</html>
